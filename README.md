@@ -250,9 +250,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/microbot-chatbot/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/microbot-chatbot/discussions)
-- **Email**: support@microbot.dev
+- **Issues**: [GitHub Issues](https://github.com/Zakinoorani28/Microbot-Ai-Tech-Assistent/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/Zakinoorani28/Microbot-Ai-Tech-Assistent/discussions)
+- **Email**: zakinoorani2006@gmail.com
 
 ---
 
@@ -261,7 +261,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
   <p>
     <a href="#top">Back to Top</a> •
     <a href="https://microbot-demo.vercel.app">Live Demo</a> •
-    <a href="https://github.com/yourusername/microbot-chatbot">GitHub</a>
+    <a href="[https://github.com/Zakinoorani28/Microbot-Ai-Tech-Assistent">GitHub</a>
   </p>
 </div>
 \`\`\`

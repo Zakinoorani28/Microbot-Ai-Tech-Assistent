@@ -10,15 +10,16 @@
 
 <div align="center">
   <h3>Your always-available AI assistant for tech products and instant support</h3>
-  <p>Powered by Google's Gemini AI with Roman Urdu support</p>
+  <p>Powered by ChatGpt Open AI with Roman Urdu support</p>
 </div>
 
 ---
+
 ## 🌟 Features
 
 ### 🎯 **Core Functionality**
 
-- **Smart AI Conversations** - Powered by Google Gemini AI for accurate tech advice
+- **Smart AI Conversations** - Powered by ChatGpt Open AI for accurate tech advice
 - **Roman Urdu Support** - Automatic language detection and bilingual responses
 - **Real-time Chat** - Instant responses with typing indicators
 - **Markdown Rendering** - Beautiful formatting for code, tables, and text

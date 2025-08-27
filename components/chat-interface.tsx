@@ -1,7 +1,6 @@
 "use client";
 
 import type React from "react";
-
 import { useRef, useEffect, useState, useCallback } from "react";
 import { Send, Bot, User, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -42,20 +41,20 @@ export function ChatInterface({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lastUpdateRef = useRef<string>("");
 
-  // Initialize messages when session changes
+  // Reset on session change
   useEffect(() => {
     setMessages(initialMessages);
     setError(null);
   }, [sessionId]);
 
-  // Auto-scroll to bottom when new messages arrive
+  // Auto scroll
   useEffect(() => {
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
     }
   }, [messages.length]);
 
-  // Update session messages only when messages actually change
+  // Session persistence
   const updateMessages = useCallback(
     (newMessages: Message[]) => {
       if (sessionId && newMessages.length > 0) {
@@ -71,7 +70,6 @@ export function ChatInterface({
     [sessionId, onMessagesUpdate]
   );
 
-  // Update session when messages change, but prevent infinite loops
   useEffect(() => {
     updateMessages(messages);
   }, [messages, updateMessages]);
@@ -91,18 +89,19 @@ export function ChatInterface({
     setMessages(newMessages);
     setError(null);
 
-    // Call the callback to update session title if it's the first message
     onMessageSent(messageText.trim(), isFirstMessage);
-
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/gemini", {
+      // ✅ switched to /api/chat (AIML ChatGPT backend)
+      const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: messageText.trim(),
-          messages: newMessages,
+          messages: newMessages.map((m) => ({
+            role: m.role,
+            content: m.content,
+          })),
         }),
       });
 
@@ -115,13 +114,8 @@ export function ChatInterface({
 
       const data = await response.json();
 
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      if (!data.reply) {
-        throw new Error("No reply received from API");
-      }
+      if (data.error) throw new Error(data.error);
+      if (!data.reply) throw new Error("No reply received from API");
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -140,7 +134,7 @@ export function ChatInterface({
       const errorResponse: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: `Sorry, I encountered an error: ${errorMessage}. Please check your internet connection and try again.`,
+        content: `Sorry, I encountered an error: ${errorMessage}. Please check your connection and try again.`,
         timestamp: new Date(),
         error: true,
       };
@@ -158,7 +152,6 @@ export function ChatInterface({
 
   const handleVoiceResult = (voiceText: string) => {
     setInput(voiceText);
-    // Auto-send voice input after a short delay
     setTimeout(() => {
       sendMessage(voiceText);
       setInput("");
@@ -172,9 +165,8 @@ export function ChatInterface({
     }
   };
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  };
+  const formatTime = (date: Date) =>
+    date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
   const retryLastMessage = () => {
     if (messages.length >= 2) {
@@ -188,7 +180,6 @@ export function ChatInterface({
 
   return (
     <div className="flex flex-col h-full bg-background relative w-full overflow-hidden">
-      {/* Error Banner */}
       {error && (
         <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 p-3 relative z-10">
           <div className="flex items-center gap-2 text-red-700 dark:text-red-400">
@@ -206,7 +197,6 @@ export function ChatInterface({
         </div>
       )}
 
-      {/* Messages Area - with padding bottom for sticky input */}
       <ScrollArea className="flex-1 pb-24 w-full" ref={scrollAreaRef}>
         <div className="p-2 sm:p-4 space-y-4 w-full max-w-full">
           {messages.length === 0 && (
@@ -316,7 +306,7 @@ export function ChatInterface({
         </div>
       </ScrollArea>
 
-      {/* Sticky Input Area */}
+      {/* Input */}
       <div className="absolute bottom-0 left-0 right-0 bg-background border-t border-border p-2 sm:p-4">
         <form
           onSubmit={handleSubmit}

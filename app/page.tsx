@@ -294,7 +294,7 @@ export default function Home() {
                 <p className="text-muted-foreground mb-6">
                   Your always-available AI assistant, ready to help you choose
                   the right tech products or get instant support—powered by
-                  Gemini AI.
+                  Open AI.
                 </p>
                 <button
                   onClick={createNewChat}

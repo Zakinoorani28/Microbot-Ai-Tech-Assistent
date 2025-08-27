@@ -10,7 +10,7 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "MicroBot - Your AI Tech Assistant",
   description:
-    "MicroBot is your always-available AI assistant, ready to help you choose the right tech products or get instant support—powered by Gemini AI.",
+    "MicroBot is your always-available AI assistant, ready to help you choose the right tech products or get instant support—powered by Open AI.",
   icons: {
     icon: "/favicon.ico",
   },
@@ -23,7 +23,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
+      <body className={inter.className} suppressHydrationWarning>
         <ThemeProvider defaultTheme="dark">{children}</ThemeProvider>
         <Analytics />
       </body>

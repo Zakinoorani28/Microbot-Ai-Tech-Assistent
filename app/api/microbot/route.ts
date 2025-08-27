@@ -1,6 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-// Utility to detect Roman Urdu in user input
+// ✅ AIML API endpoint
+const API_URL = "https://api.aimlapi.com/v1/chat/completions";
+
+// ✅ Utility to detect Roman Urdu in user input
 function detectRomanUrdu(text: string): boolean {
   const romanUrduPatterns = [
     /\b(aap|ap|hum|main|mein|hai|hain|ka|ki|ke|ko|se|par|or|aur|kya|kaise|kahan|kab|kyun|jo|jis|agar|lekin|phir|abhi|yahan|wahan|yeh|ye|woh|wo|iska|uska|hamara|tumhara|apka)\b/i,
@@ -14,65 +17,64 @@ function detectRomanUrdu(text: string): boolean {
 export async function POST(req: NextRequest) {
   try {
     const { prompt, messages } = await req.json();
-    const API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    const API_KEY = process.env.AIML_API_KEY; // 🔑 set in .env.local
 
     if (!API_KEY) {
-      console.error("No API key found");
+      console.error("❌ AIML_API_KEY not found in environment");
       return NextResponse.json(
         { error: "API key not configured" },
         { status: 500 }
       );
     }
 
+    // ✅ Extract last user input
     const userPrompt =
       prompt || messages?.[messages.length - 1]?.content || "Hello";
     const isRomanUrdu = detectRomanUrdu(userPrompt);
 
-    // Adjust response style based on prompt length
+    // ✅ Adjust response style based on input length
     const promptLength = userPrompt.trim().split(/\s+/).length;
     const isShort = promptLength < 8;
 
+    // ✅ Dynamic system prompt
     const systemPrompt = isRomanUrdu
       ? `Tum MicroBot ho — ek madadgar AI tech assistant. Jab user Roman Urdu mein likhta hai, tum Roman Urdu + English technical terms mein jawab do. Short sawalon ke liye short aur seedha jawab do. Agar user detail maange to detail mein jawab do.`
       : `You are MicroBot — a helpful and friendly AI tech assistant. If the user's question is short, respond concisely. If the user asks for a detailed explanation, provide one. Keep tone helpful, clear, and tech-savvy.`;
 
+    // ✅ AIML API request (OpenAI compatible)
     const requestBody = {
-      contents: [
-        {
-          parts: [
-            {
-              text: `${systemPrompt}\n\nUser: ${userPrompt}`,
-            },
-          ],
-        },
+      model: "gpt-4o-mini", // or gpt-4, gpt-4o
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...(messages || []),
+        { role: "user", content: userPrompt },
       ],
-      generationConfig: {
-        temperature: 0.7,
-        topK: 40,
-        topP: 0.9,
-        maxOutputTokens: isShort ? 300 : 1024, // Dynamic response size
-      },
+      temperature: 0.7,
+      top_p: 0.8,
+      max_tokens: isShort ? 300 : 1024,
+      frequency_penalty: 1,
+      presence_penalty: 0.3,
     };
 
-    const result = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
-      }
-    );
+    const result = await fetch(API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${API_KEY}`,
+      },
+      body: JSON.stringify(requestBody),
+    });
 
     if (!result.ok) {
       const errorText = await result.text();
-      console.error("Gemini API Error Response:", errorText);
+      console.error("❌ AIML API Error Response:", errorText);
 
-      let errorMessage = "Failed to get response from Gemini";
+      let errorMessage = "Failed to get response from AIML API";
       try {
         const errorJson = JSON.parse(errorText);
         errorMessage = errorJson.error?.message || errorMessage;
       } catch {
-        // ignore JSON parse error
+        // ignore parse error
       }
 
       return NextResponse.json(
@@ -81,13 +83,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // ✅ Parse AIML API response
     const json = await result.json();
-    const reply =
-      json.candidates?.[0]?.content?.parts?.[0]?.text || "No reply generated.";
+    const reply = json.choices?.[0]?.message?.content || "No reply generated.";
 
     return NextResponse.json({ reply });
   } catch (error) {
-    console.error("API Route Error:", error);
+    console.error("❌ API Route Error:", error);
     return NextResponse.json(
       {
         error: "Internal server error",

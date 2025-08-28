@@ -293,8 +293,8 @@ export default function Home() {
                 </h2>
                 <p className="text-muted-foreground mb-6">
                   Your always-available AI assistant, ready to help you choose
-                  the right tech products or get instant support—powered by
-                  Open AI.
+                  the right tech products or get instant support—powered by Open
+                  AI.
                 </p>
                 <button
                   onClick={createNewChat}

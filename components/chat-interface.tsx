@@ -47,7 +47,7 @@ export function ChatInterface({
     setError(null);
   }, [sessionId]);
 
-  // Auto scroll
+  // Auto-scroll
   useEffect(() => {
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight;
@@ -58,11 +58,11 @@ export function ChatInterface({
   const updateMessages = useCallback(
     (newMessages: Message[]) => {
       if (sessionId && newMessages.length > 0) {
-        const messagesKey = `${sessionId}-${newMessages.length}-${
+        const key = `${sessionId}-${newMessages.length}-${
           newMessages[newMessages.length - 1]?.id
         }`;
-        if (lastUpdateRef.current !== messagesKey) {
-          lastUpdateRef.current = messagesKey;
+        if (lastUpdateRef.current !== key) {
+          lastUpdateRef.current = key;
           onMessagesUpdate(sessionId, newMessages);
         }
       }
@@ -74,11 +74,19 @@ export function ChatInterface({
     updateMessages(messages);
   }, [messages, updateMessages]);
 
+  // Helper: format time (avoid SSR mismatch by computing on client only)
+  const formatTime = (date: Date) =>
+    new Date(date).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+  // --- STREAMING SEND ---
   const sendMessage = async (messageText: string) => {
     if (!messageText.trim() || isLoading) return;
 
     const userMessage: Message = {
-      id: Date.now().toString(),
+      id: `${Date.now()}`,
       role: "user",
       content: messageText.trim(),
       timestamp: new Date(),
@@ -88,57 +96,118 @@ export function ChatInterface({
     const newMessages = [...messages, userMessage];
     setMessages(newMessages);
     setError(null);
-
     onMessageSent(messageText.trim(), isFirstMessage);
     setIsLoading(true);
 
+    // Add a placeholder assistant message we will update as chunks arrive
+    const assistantId = `${Date.now() + 1}`;
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: assistantId,
+        role: "assistant",
+        content: "",
+        timestamp: new Date(),
+      },
+    ]);
+
     try {
-      // ✅ switched to /api/chat (AIML ChatGPT backend)
-      const response = await fetch("/api/chat", {
+      const response = await fetch("/api/microbot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          // Send *only* role/content for backend
           messages: newMessages.map((m) => ({
             role: m.role,
             content: m.content,
           })),
+          prompt: messageText.trim(),
         }),
       });
 
       if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ error: "Network error" }));
-        throw new Error(errorData.error || `HTTP ${response.status}`);
+        const text = await response.text().catch(() => "");
+        throw new Error(text || `HTTP ${response.status}`);
       }
 
-      const data = await response.json();
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("Empty stream from server");
+      }
 
-      if (data.error) throw new Error(data.error);
-      if (!data.reply) throw new Error("No reply received from API");
+      const decoder = new TextDecoder("utf-8");
+      let buffer = "";
+      let done = false;
 
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: data.reply,
-        timestamp: new Date(),
-      };
+      // Keep local copy of content to minimize state churn
+      let assembled = "";
 
-      setMessages((prev) => [...prev, assistantMessage]);
-    } catch (error) {
-      console.error("Chat error:", error);
+      while (!done) {
+        const { value, done: readerDone } = await reader.read();
+        done = readerDone;
+        if (value) {
+          buffer += decoder.decode(value, { stream: true });
+
+          // SSE frames are separated by \n\n
+          const parts = buffer.split("\n\n");
+          // keep last partial (if any) in buffer
+          buffer = parts.pop() || "";
+
+          for (const part of parts) {
+            // Each event may have multiple "field: value" lines, we want `data: ...`
+            const lines = part.split("\n");
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (!trimmed.startsWith("data:")) continue;
+
+              const payload = trimmed.slice(5).trim();
+              if (payload === "[DONE]") {
+                done = true;
+                break;
+              }
+
+              // OpenAI-style delta chunks
+              try {
+                const json = JSON.parse(payload);
+                const delta =
+                  json?.choices?.[0]?.delta?.content ??
+                  json?.choices?.[0]?.message?.content ??
+                  "";
+
+                if (typeof delta === "string" && delta.length > 0) {
+                  assembled += delta;
+                  // Update the assistant message content progressively
+                  setMessages((prev) =>
+                    prev.map((m) =>
+                      m.id === assistantId ? { ...m, content: assembled } : m
+                    )
+                  );
+                }
+              } catch {
+                // If a provider sends keepalive pings or non-JSON lines, ignore safely
+              }
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Chat stream error:", err);
       const errorMessage =
-        error instanceof Error ? error.message : "Unknown error occurred";
+        err instanceof Error ? err.message : "Unknown error occurred";
       setError(errorMessage);
 
-      const errorResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: `Sorry, I encountered an error: ${errorMessage}. Please check your connection and try again.`,
-        timestamp: new Date(),
-        error: true,
-      };
-      setMessages((prev) => [...prev, errorResponse]);
+      // Replace placeholder assistant message with an error bubble
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.role === "assistant" && m.content === ""
+            ? {
+                ...m,
+                content: `Sorry, I encountered an error: ${errorMessage}. Please retry.`,
+                error: true,
+              }
+            : m
+        )
+      );
     } finally {
       setIsLoading(false);
     }
@@ -155,7 +224,7 @@ export function ChatInterface({
     setTimeout(() => {
       sendMessage(voiceText);
       setInput("");
-    }, 500);
+    }, 300);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -165,14 +234,12 @@ export function ChatInterface({
     }
   };
 
-  const formatTime = (date: Date) =>
-    date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-
   const retryLastMessage = () => {
     if (messages.length >= 2) {
       const lastUserMessage = messages[messages.length - 2];
       if (lastUserMessage.role === "user") {
         setInput(lastUserMessage.content);
+        // remove last assistant (streamed) + user
         setMessages((prev) => prev.slice(0, -2));
       }
     }
@@ -180,6 +247,7 @@ export function ChatInterface({
 
   return (
     <div className="flex flex-col h-full bg-background relative w-full overflow-hidden">
+      {/* Error Banner */}
       {error && (
         <div className="bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800 p-3 relative z-10">
           <div className="flex items-center gap-2 text-red-700 dark:text-red-400">
@@ -197,6 +265,7 @@ export function ChatInterface({
         </div>
       )}
 
+      {/* Messages */}
       <ScrollArea className="flex-1 pb-24 w-full" ref={scrollAreaRef}>
         <div className="p-2 sm:p-4 space-y-4 w-full max-w-full">
           {messages.length === 0 && (

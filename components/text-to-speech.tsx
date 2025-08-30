@@ -34,15 +34,37 @@ export function TextToSpeech({ text, className }: TextToSpeechProps) {
   }, []);
 
   const detectLanguage = (text: string): string => {
-    // Urdu/Arabic script
     const urduPattern = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]/;
     if (urduPattern.test(text)) return "ur-PK";
 
     // Roman Urdu
     const romanUrduPatterns = [
-      /\b(aap|ap|hum|main|mein|hai|hain|ka|ki|ke|ko|se|par|or|aur|kya|kaise|kahan|kab|kyun|jo|jis|agar|lekin|phir|abhi|yahan|wahan|yeh|ye|woh|wo|iska|uska|hamara|tumhara|apka)\b/i,
-      /\b(batao|bataiye|samjhao|samjhaiye|dekho|dekhiye|suno|suniye|karo|kariye|acha|accha|theek|thik|bilkul|zaroor|shayad)\b/i,
+      // Common pronouns, verbs, particles
+      /\b(aap|ap|tum|tu|hum|main|mein|me|mai|mera|meri|mere|tera|teri|tere|hamara|hamari|hamare|unka|unki|unke|iska|iski|iske|uska|uski|uske|yeh|ye|woh|wo|inka|inki|inke)\b/i,
+
+      // Helping verbs
+      /\b(hai|hain|hun|tha|thi|the|raha|rahi|rahe|jata|jati|jate|gaya|gayi|gaye|karta|kartay|karte|kari|karo|karna|karen|karenge|hoga|hogi|hon|hona|hogaya|hogayi)\b/i,
+
+      // Common connectors & particles
+      /\b(ka|ki|ke|ko|se|par|mein|mai|aur|or|magar|lekin|agar|phir|jab|jabtak|kyun|kyunki|kab|kahan|kahaan|kaise|kis|kya)\b/i,
+
+      // Daily use expressions
+      /\b(suno|suniye|dekho|dekhiye|bolo|boliye|batao|bataye|samjhao|samjhaiye|chalo|rukho|rukiye|chup|jao|ao|aao|chahiye|zaroor|shayad|abhi|kal|aj|aaj|yahan|wahan)\b/i,
+
+      // Positive/negative/confirmation words
+      /\b(acha|accha|theek|thik|bilkul|haan|han|ji|nahi|nahin|haanji|jihaan|acha|wah|mashallah|inshallah|subhanallah)\b/i,
+
+      // Family & people words
+      /\b(amma|ammi|abba|bhai|behen|beta|beti|dost|ustad|sir|madam|bhaiya|chacha|taya|mamu|khala|phuphi)\b/i,
+
+      // Greetings & politeness
+      /\b(salam|salaam|assalamualaikum|walaikum|shukriya|meherbani|jazakallah|dua|khuda|khuda hafiz|allah hafiz|goodbye)\b/i,
+
+      // Common slang/phrases
+      /\b(kya scene hai|kya haal hai|mast|mazay|scene|jhakas|bakwass|faltu|ghalat|sahi|acha lagta|mazaydar)\b/i,
     ];
+
+    if (romanUrduPatterns.some((p) => p.test(text))) return "ur-PK";
 
     const hasRomanUrdu = romanUrduPatterns.some((pattern) =>
       pattern.test(text)
@@ -53,23 +75,31 @@ export function TextToSpeech({ text, className }: TextToSpeechProps) {
   const pickVoice = (lang: string): SpeechSynthesisVoice | null => {
     if (!voices.length) return null;
 
-    // Try exact match
-    let v = voices.find(
+    // Exact match first
+    let candidates = voices.filter(
       (voice) => voice.lang.toLowerCase() === lang.toLowerCase()
     );
 
-    if (!v) {
-      // Fallback: pick first matching language prefix
-      v = voices.find((voice) =>
+    // If none, fallback to same language prefix (ur, en, etc.)
+    if (!candidates.length) {
+      candidates = voices.filter((voice) =>
         voice.lang.toLowerCase().startsWith(lang.split("-")[0])
       );
     }
 
-    // Last fallback: just pick default English
-    if (!v)
-      v = voices.find((voice) => voice.lang.startsWith("en")) || voices[0];
+    // Prefer female-sounding voices
+    const female = candidates.find((v) =>
+      /female|zira|hazel|ava|sara|zira/i.test(v.name)
+    );
+    if (female) return female;
 
-    return v || null;
+    // Otherwise fallback to first candidate or English
+    return (
+      candidates[0] ||
+      voices.find((v) => v.lang.startsWith("en")) ||
+      voices[0] ||
+      null
+    );
   };
 
   const speak = () => {
@@ -84,8 +114,11 @@ export function TextToSpeech({ text, className }: TextToSpeechProps) {
     const language = detectLanguage(text);
 
     utterance.lang = language;
-    utterance.rate = 0.9;
-    utterance.pitch = 1;
+
+    // Adjust speech rate & pitch based on language
+    utterance.rate = language.startsWith("ur") ? 0.8 : 0.95;
+    utterance.pitch = language.startsWith("ur") ? 1.1 : 1;
+
     utterance.volume = 1;
 
     // Pick consistent voice
